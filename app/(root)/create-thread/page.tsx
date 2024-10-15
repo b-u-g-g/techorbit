@@ -21,7 +21,16 @@ async function Page() {
   return (
     <>
       <div className="flex items-center justify-between mb-8">
-        <h1 className='head-text'>Create Byte</h1>
+      <div className="flex items-center">
+      <img 
+    src="/assets/cb.jpeg" 
+    alt="Description of the image" 
+    className="w-[60px] h-[57px] mr-2" 
+  />
+
+  <h1 className="head-text">Create Byte</h1>
+</div>
+
         <div className="flex items-center gap-2 text-primary-500 cursor-pointer">
         <PlusCircle className="w-6 h-6" style={{ color: '#17818c' }} />
 
