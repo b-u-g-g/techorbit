@@ -1,5 +1,12 @@
 "use client";
 
+import { useState, ChangeEvent } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { usePathname, useRouter } from "next/navigation";
+import Image from "next/image";
+
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -9,17 +16,21 @@ import {
   FormLabel,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { UserValidation } from "@/lib/validations/user";
-import * as z from "zod";
-import Image from "next/image";
-import { ChangeEvent, useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
-import { isBase64Image } from "@/lib/utils";
+
 import { useUploadThing } from "@/lib/uploadthing";
+import { isBase64Image } from "@/lib/utils";
 import { updateUser } from "@/lib/actions/user.actions";
-import { usePathname, useRouter } from "next/navigation";
+
+const UserValidation = z.object({
+  profile_photo: z.string().url().nonempty(),
+  name: z.string().min(3).max(30),
+  username: z.string().min(3).max(30),
+  bio: z.string().max(1000),
+  github: z.string().url().optional(),
+  codeforcesRating: z.string().optional(),
+  codechefRating: z.string().optional(),
+});
 
 interface Props {
   user: {
@@ -37,18 +48,19 @@ interface Props {
 }
 
 const AccountProfile = ({ user, btnTitle }: Props) => {
+  const [files, setFiles] = useState<File[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { startUpload } = useUploadThing("media");
-  const [files, setfiles] = useState<File[]>([]);
   const router = useRouter();
   const pathname = usePathname();
 
-  const form = useForm({
+  const form = useForm<z.infer<typeof UserValidation>>({
     resolver: zodResolver(UserValidation),
     defaultValues: {
       profile_photo: user?.image || "",
       name: user?.name || "",
-      bio: user?.bio || "",
       username: user?.username || "",
+      bio: user?.bio || "",
       github: user?.github || "",
       codeforcesRating: user?.codeforcesRating || "",
       codechefRating: user?.codechefRating || "",
@@ -65,44 +77,64 @@ const AccountProfile = ({ user, btnTitle }: Props) => {
 
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
-      setfiles(Array.from(e.target.files));
+      setFiles(Array.from(e.target.files));
 
       if (!file.type.includes("image")) return;
+
       fileReader.onload = async (event) => {
         const imageDataUrl = event.target?.result?.toString() || "";
         fieldChange(imageDataUrl);
       };
+
       fileReader.readAsDataURL(file);
     }
   };
 
   const onSubmit = async (values: z.infer<typeof UserValidation>) => {
-    const blob = values.profile_photo;
-    const hasImageChanged = isBase64Image(blob);
-    if (hasImageChanged) {
-      const imgRes = await startUpload(files);
+    setIsSubmitting(true);
+    console.log("Form submitted with values:", values);
 
-      if (imgRes && imgRes[0].url) {
-        values.profile_photo = imgRes[0].url;
+    try {
+      const blob = values.profile_photo;
+      const hasImageChanged = isBase64Image(blob);
+      let imageUrl = user.image;
+
+      if (hasImageChanged) {
+        console.log("Uploading new image...");
+        const imgRes = await startUpload(files);
+        if (imgRes && imgRes[0].url) {
+          imageUrl = imgRes[0].url;
+          console.log("New image uploaded:", imageUrl);
+        }
       }
-    }
 
-    await updateUser({
-      userId: user.id,
-      username: values.username,
-      name: values.name,
-      bio: values.bio,
-      image: values.profile_photo,
-      github: values.github,
-      codeforcesRating: values.codeforcesRating,
-      codechefRating: values.codechefRating,
-      path: pathname,
-    });
+      console.log("Updating user data...");
+      await updateUser({
+        userId: user.id,
+        username: values.username,
+        name: values.name,
+        bio: values.bio,
+        image: imageUrl,
+        github: values.github,
+        codeforcesRating: values.codeforcesRating,
+        codechefRating: values.codechefRating,
+        path: pathname,
+      });
 
-    if (pathname === "/profile/edit") {
-      router.back();
-    } else {
-      router.push("/");
+      console.log("User profile update completed");
+      
+      // Assuming the update was successful if no error was thrown
+      if (pathname === "/profile/edit") {
+        router.back();
+      } else {
+        router.push("/");
+      }
+    } catch (error) {
+      console.error("Error in onSubmit:", error);
+      // Implement user-friendly error message here
+      alert("An error occurred while updating your profile. Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -137,7 +169,7 @@ const AccountProfile = ({ user, btnTitle }: Props) => {
                   />
                 )}
               </FormLabel>
-              <FormControl className="flex-1 text-base-semibold text-gray-200 p-3">
+              <FormControl className="flex-1 text-base-semibold text-gray-200">
                 <Input
                   type="file"
                   accept="image/*"
@@ -150,13 +182,12 @@ const AccountProfile = ({ user, btnTitle }: Props) => {
           )}
         />
 
-        {/* Name Field */}
         <FormField
           control={form.control}
           name="name"
           render={({ field }) => (
-            <FormItem className="flex flex-col gap-3 w-full p-3">
-              <FormLabel className="text-base-semibold text-light-2 p-1">
+            <FormItem className="flex flex-col gap-3 w-full">
+              <FormLabel className="text-base-semibold text-light-2">
                 Name
               </FormLabel>
               <FormControl>
@@ -170,13 +201,12 @@ const AccountProfile = ({ user, btnTitle }: Props) => {
           )}
         />
 
-        {/* Username Field */}
         <FormField
           control={form.control}
           name="username"
           render={({ field }) => (
-            <FormItem className="flex flex-col gap-3 w-full p-3">
-              <FormLabel className="text-base-semibold text-light-2 p-1">
+            <FormItem className="flex flex-col gap-3 w-full">
+              <FormLabel className="text-base-semibold text-light-2">
                 Username
               </FormLabel>
               <FormControl>
@@ -190,13 +220,12 @@ const AccountProfile = ({ user, btnTitle }: Props) => {
           )}
         />
 
-        {/* Bio Field */}
         <FormField
           control={form.control}
           name="bio"
           render={({ field }) => (
-            <FormItem className="flex flex-col gap-3 w-full p-3">
-              <FormLabel className="text-base-semibold text-light-2 p-1">
+            <FormItem className="flex flex-col gap-3 w-full">
+              <FormLabel className="text-base-semibold text-light-2">
                 Bio
               </FormLabel>
               <FormControl>
@@ -210,13 +239,12 @@ const AccountProfile = ({ user, btnTitle }: Props) => {
           )}
         />
 
-        {/* GitHub URL Field */}
         <FormField
           control={form.control}
           name="github"
           render={({ field }) => (
-            <FormItem className="flex flex-col gap-3 w-full p-3">
-              <FormLabel className="text-base-semibold text-light-2 p-1">
+            <FormItem className="flex flex-col gap-3 w-full">
+              <FormLabel className="text-base-semibold text-light-2">
                 GitHub URL
               </FormLabel>
               <FormControl>
@@ -230,13 +258,12 @@ const AccountProfile = ({ user, btnTitle }: Props) => {
           )}
         />
 
-        {/* Codeforces Rating Field */}
         <FormField
           control={form.control}
           name="codeforcesRating"
           render={({ field }) => (
-            <FormItem className="flex flex-col gap-3 w-full p-3">
-              <FormLabel className="text-base-semibold text-light-2 p-1">
+            <FormItem className="flex flex-col gap-3 w-full">
+              <FormLabel className="text-base-semibold text-light-2">
                 Codeforces Rating
               </FormLabel>
               <FormControl>
@@ -250,13 +277,12 @@ const AccountProfile = ({ user, btnTitle }: Props) => {
           )}
         />
 
-        {/* CodeChef Rating Field */}
         <FormField
           control={form.control}
           name="codechefRating"
           render={({ field }) => (
-            <FormItem className="flex flex-col gap-3 w-full p-3">
-              <FormLabel className="text-base-semibold text-light-2 p-1">
+            <FormItem className="flex flex-col gap-3 w-full">
+              <FormLabel className="text-base-semibold text-light-2">
                 CodeChef Rating
               </FormLabel>
               <FormControl>
@@ -270,8 +296,12 @@ const AccountProfile = ({ user, btnTitle }: Props) => {
           )}
         />
 
-        <Button type="submit" className="bg-primary-500 p-2">
-          {btnTitle}
+        <Button 
+          type="submit" 
+          className="bg-[#0b454b]"
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? "Updating..." : btnTitle}
         </Button>
       </form>
     </Form>
@@ -279,4 +309,3 @@ const AccountProfile = ({ user, btnTitle }: Props) => {
 };
 
 export default AccountProfile;
-

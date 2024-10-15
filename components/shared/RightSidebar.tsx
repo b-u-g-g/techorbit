@@ -38,7 +38,7 @@ async function RightSidebar() {
               ))}
             </>
           ) : (
-            <p className='!text-base-regular text-light-3'>
+            <p className='!text-base-regular text-light-3' style={{ color: '#17818c' }}>
               No communities yet
             </p>
           )}

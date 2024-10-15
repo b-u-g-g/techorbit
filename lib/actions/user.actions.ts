@@ -24,26 +24,20 @@ export async function fetchUser(userId: string) {
 
 interface Params {
   userId: string;
-  username?: string;
-  name?: string;
-  bio?: string;
-  image?: string;
-  github?: string;
-  codeforces?: string;
-  codechef?: string;
-  path?: string;
+  username: string;
+  name: string;
+  bio: string;
+  image: string;
+  path: string;
 }
 
 export async function updateUser({
   userId,
-  username,
-  name,
   bio,
-  image,
-  github,
-  codeforces,
-  codechef,
+  name,
   path,
+  username,
+  image,
 }: Params): Promise<void> {
   try {
     connectToDB();
@@ -56,9 +50,6 @@ export async function updateUser({
         bio,
         image,
         onboarded: true,
-        github,
-        codeforces,
-        codechef,
       },
       { upsert: true }
     );
